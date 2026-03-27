@@ -4,6 +4,28 @@ import { ItemActions } from "@/components/item-actions";
 import { getItemById } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
+function formatSaleStockNote(sale: {
+  payment_method: string;
+  account: string;
+  amount: string;
+  quantity: number;
+}, listPrice: string) {
+  const parts = [`Sale: ${sale.payment_method}`];
+
+  if (sale.account) {
+    parts.push(`ACC: ${sale.account}`);
+  }
+
+  const expectedAmount = Number(listPrice) * sale.quantity;
+  const actualAmount = Number(sale.amount);
+
+  if (Math.abs(actualAmount - expectedAmount) > 0.009) {
+    parts.push(`OR Price: ${formatCurrency(actualAmount)}`);
+  }
+
+  return `${parts.join(", ")}${sale.quantity > 0 ? `, Qty: ${sale.quantity}` : ""}`;
+}
+
 export default async function ItemDetailPage({
   params
 }: {
@@ -11,10 +33,24 @@ export default async function ItemDetailPage({
 }) {
   const { organizationId, itemId } = await params;
   const item = await getItemById(organizationId, itemId);
-  const stockMovements = [...(item.stock_movements ?? [])].sort((a, b) =>
-    b.created_at.localeCompare(a.created_at)
+  const stockMovements = item.stock_movements ?? [];
+  const sales = item.sales ?? [];
+  const saleByTimestamp = new Map(
+    sales.map((sale) => [`${sale.created_at}:${sale.quantity}`, sale])
   );
-  const sales = [...(item.sales ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const renderedStockMovements = stockMovements.map((movement) => {
+    const matchingSale =
+      movement.delta < 0
+        ? saleByTimestamp.get(`${movement.created_at}:${Math.abs(movement.delta)}`)
+        : undefined;
+
+    return {
+      ...movement,
+      renderedNote: matchingSale
+        ? formatSaleStockNote(matchingSale, item.price)
+        : movement.note || "No note"
+    };
+  });
 
   return (
     <section className="page-grid">
@@ -74,6 +110,9 @@ export default async function ItemDetailPage({
                       <span className="muted">
                         Qty {sale.quantity} {sale.account ? `· ${sale.account}` : ""}
                       </span>
+                      {sale.profiles?.email ? (
+                        <span className="muted history-actor">{sale.profiles.email}</span>
+                      ) : null}
                     </div>
                     <span className="muted">{formatDate(sale.created_at)}</span>
                   </div>
@@ -86,13 +125,16 @@ export default async function ItemDetailPage({
 
           <section className="card stack">
             <h2>Stock history</h2>
-            {stockMovements.length ? (
+            {renderedStockMovements.length ? (
               <div className="list">
-                {stockMovements.map((movement) => (
+                {renderedStockMovements.map((movement) => (
                   <div className="list-row" key={movement.id}>
                     <div className="stack" style={{ gap: "4px" }}>
                       <strong>{movement.delta > 0 ? `+${movement.delta}` : movement.delta}</strong>
-                      <span className="muted">{movement.note || "No note"}</span>
+                      <span className="muted">{movement.renderedNote}</span>
+                      {movement.profiles?.email ? (
+                        <span className="muted history-actor">{movement.profiles.email}</span>
+                      ) : null}
                     </div>
                     <span className="muted">{formatDate(movement.created_at)}</span>
                   </div>

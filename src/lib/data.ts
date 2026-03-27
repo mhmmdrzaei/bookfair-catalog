@@ -66,51 +66,65 @@ export async function getOrganizationById(organizationId: string) {
   const supabase = await createSupabaseServerClient();
   await requireUser();
 
-  const { data, error } = await supabase
+  const { data: organization, error: organizationError } = await supabase
     .from("organizations")
     .select(
       `
         id,
         name,
-        created_at,
-        organization_members (
-          id,
-          role,
-          created_at
-        ),
-        organization_invites (
-          id,
-          email,
-          created_at,
-          accepted_at
-        ),
-        inventory_items (
-          id,
-          title,
-          image_path,
-          info,
-          price,
-          quantity,
-          created_at,
-          updated_at
-        )
+        created_at
       `
     )
     .eq("id", organizationId)
     .single();
 
-  if (error || !data) {
+  if (organizationError || !organization) {
     redirect("/organizations");
   }
 
-  return data;
+  const [{ data: members }, { data: invites }, { data: inventoryItems }] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select("id, user_id, role, created_at")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("organization_invites")
+      .select("id, email, created_at, accepted_at")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("inventory_items")
+      .select("id, title, image_path, info, price, quantity, created_at, updated_at")
+      .eq("organization_id", organizationId)
+      .order("title", { ascending: true })
+  ]);
+
+  const userIds = (members ?? []).map((member) => member.user_id);
+  const { data: profiles } = userIds.length
+    ? await supabase.from("profiles").select("id, email").in("id", userIds)
+    : { data: [] };
+
+  const profilesById = new Map((profiles ?? []).map((profile) => [profile.id, profile.email]));
+
+  return {
+    ...organization,
+    organization_members: (members ?? []).map((member) => ({
+      ...member,
+      profiles: profilesById.has(member.user_id)
+        ? { email: profilesById.get(member.user_id) ?? "" }
+        : null
+    })),
+    organization_invites: invites ?? [],
+    inventory_items: inventoryItems ?? []
+  };
 }
 
 export async function getItemById(organizationId: string, itemId: string) {
   const supabase = await createSupabaseServerClient();
   await requireUser();
 
-  const { data, error } = await supabase
+  const { data: item, error } = await supabase
     .from("inventory_items")
     .select(
       `
@@ -122,30 +136,58 @@ export async function getItemById(organizationId: string, itemId: string) {
         price,
         quantity,
         created_at,
-        updated_at,
-        stock_movements (
-          id,
-          delta,
-          note,
-          created_at
-        ),
-        sales (
-          id,
-          payment_method,
-          account,
-          amount,
-          quantity,
-          created_at
-        )
+        updated_at
       `
     )
     .eq("organization_id", organizationId)
     .eq("id", itemId)
     .single();
 
-  if (error || !data) {
+  if (error || !item) {
     redirect(`/organizations/${organizationId}`);
   }
 
-  return data;
+  const [{ data: stockMovements }, { data: sales }] = await Promise.all([
+    supabase
+      .from("stock_movements")
+      .select("id, delta, note, created_at, created_by")
+      .eq("organization_id", organizationId)
+      .eq("item_id", itemId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("sales")
+      .select("id, payment_method, account, amount, quantity, created_at, created_by")
+      .eq("organization_id", organizationId)
+      .eq("item_id", itemId)
+      .order("created_at", { ascending: false })
+  ]);
+
+  const actorIds = Array.from(
+    new Set([
+      ...(stockMovements ?? []).map((movement) => movement.created_by),
+      ...(sales ?? []).map((sale) => sale.created_by)
+    ])
+  );
+
+  const { data: profiles } = actorIds.length
+    ? await supabase.from("profiles").select("id, email").in("id", actorIds)
+    : { data: [] };
+
+  const profilesById = new Map((profiles ?? []).map((profile) => [profile.id, profile.email]));
+
+  return {
+    ...item,
+    stock_movements: (stockMovements ?? []).map((movement) => ({
+      ...movement,
+      profiles: profilesById.has(movement.created_by)
+        ? { email: profilesById.get(movement.created_by) ?? "" }
+        : null
+    })),
+    sales: (sales ?? []).map((sale) => ({
+      ...sale,
+      profiles: profilesById.has(sale.created_by)
+        ? { email: profilesById.get(sale.created_by) ?? "" }
+        : null
+    }))
+  };
 }

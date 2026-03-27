@@ -1,6 +1,5 @@
-import Image from "next/image";
-import Link from "next/link";
 import { CreateItemForm } from "@/components/create-item-form";
+import { InventoryCard } from "@/components/inventory-card";
 import { InviteMemberForm } from "@/components/invite-member-form";
 import { SalesModeLayout } from "@/components/sales-mode-layout";
 import { getOrganizationById } from "@/lib/data";
@@ -64,7 +63,9 @@ export default async function OrganizationDetailPage({
               {(organization.organization_members ?? []).map((member) => (
                 <div className="list-row" key={member.id}>
                   <div className="stack" style={{ gap: "4px" }}>
-                    <strong>{member.role === "owner" ? "Owner" : "Member"}</strong>
+                    <strong>
+                      {member.profiles?.email ?? "Unknown user"} ({member.role})
+                    </strong>
                     <span className="muted">Joined {formatDate(member.created_at)}</span>
                   </div>
                 </div>
@@ -98,32 +99,7 @@ export default async function OrganizationDetailPage({
         {inventory.length ? (
           <div className="item-grid">
             {inventory.map((item) => (
-              <Link
-                className="item-card"
-                href={`/organizations/${organizationId}/items/${item.id}`}
-                key={item.id}
-              >
-                {item.image_path ? (
-                  <Image
-                    alt={item.title}
-                    className="item-image"
-                    height={720}
-                    src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/item-images/${item.image_path}`}
-                    width={960}
-                  />
-                ) : (
-                  <div className="item-image" />
-                )}
-                <div className="stack" style={{ gap: "8px" }}>
-                  <h3 className="item-title">{item.title}</h3>
-                  <p className="muted">{item.info || "No additional notes yet."}</p>
-                </div>
-                <div className="item-meta">
-                  <span className="pill">{formatCurrency(item.price)}</span>
-                  <span className="muted">Qty: {item.quantity}</span>
-                  <span className="muted">Updated {formatDate(item.updated_at)}</span>
-                </div>
-              </Link>
+              <InventoryCard item={item} key={item.id} organizationId={organizationId} />
             ))}
           </div>
         ) : (

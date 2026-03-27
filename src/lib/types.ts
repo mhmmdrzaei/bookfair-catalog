@@ -8,8 +8,12 @@ export type OrganizationSummary = {
 
 export type MemberSummary = {
   id: number;
+  user_id: string;
   role: "owner" | "member";
   created_at: string;
+  profiles: {
+    email: string;
+  } | null;
 };
 
 export type InviteSummary = {

@@ -29,6 +29,13 @@ create unique index if not exists organization_invites_pending_unique
   on public.organization_invites (organization_id, lower(email))
   where accepted_at is null;
 
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.inventory_items (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -74,10 +81,39 @@ begin
 end;
 $$;
 
+create or replace function public.handle_profile_sync()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email)
+  values (new.id, lower(coalesce(new.email, '')))
+  on conflict (id) do update
+  set email = excluded.email,
+      updated_at = now();
+
+  return new;
+end;
+$$;
+
 drop trigger if exists inventory_items_set_updated_at on public.inventory_items;
 create trigger inventory_items_set_updated_at
 before update on public.inventory_items
 for each row execute function public.set_updated_at();
+
+drop trigger if exists on_auth_user_created_profile_sync on auth.users;
+create trigger on_auth_user_created_profile_sync
+after insert or update on auth.users
+for each row execute function public.handle_profile_sync();
+
+insert into public.profiles (id, email)
+select id, lower(coalesce(email, ''))
+from auth.users
+on conflict (id) do update
+set email = excluded.email,
+    updated_at = now();
 
 create or replace function public.is_org_member(org_id uuid)
 returns boolean
@@ -256,6 +292,7 @@ declare
   current_quantity integer;
   next_quantity integer;
   sale_amount numeric(10, 2);
+  sale_note text;
 begin
   if auth.uid() is null then
     raise exception 'Authentication required';
@@ -291,6 +328,14 @@ begin
   sale_amount := coalesce(sale_amount_override, current_price * sale_quantity);
   if sale_amount < 0 then
     raise exception 'Sale amount must be positive';
+  end if;
+
+  sale_note := 'Sale: ' || sale_payment_method;
+  if coalesce(trim(sale_account), '') <> '' then
+    sale_note := sale_note || ', Account: ' || sale_account;
+  end if;
+  if sale_amount_override is not null then
+    sale_note := sale_note || ', OR Price: $' || trim(to_char(sale_amount_override, 'FM999999990.00'));
   end if;
 
   next_quantity := current_quantity - sale_quantity;
@@ -330,7 +375,7 @@ begin
     org_id,
     inventory_item_id,
     sale_quantity * -1,
-    'Sale recorded via ' || sale_payment_method,
+    sale_note,
     auth.uid()
   );
 
@@ -341,6 +386,7 @@ $$;
 alter table public.organizations enable row level security;
 alter table public.organization_members enable row level security;
 alter table public.organization_invites enable row level security;
+alter table public.profiles enable row level security;
 alter table public.inventory_items enable row level security;
 alter table public.stock_movements enable row level security;
 alter table public.sales enable row level security;
@@ -374,6 +420,21 @@ create policy "org members can view invites"
   on public.organization_invites
   for select
   using (public.is_org_member(organization_id));
+
+drop policy if exists "org members can view profiles" on public.profiles;
+create policy "org members can view profiles"
+  on public.profiles
+  for select
+  using (
+    exists (
+      select 1
+      from public.organization_members current_member
+      join public.organization_members target_member
+        on target_member.organization_id = current_member.organization_id
+      where current_member.user_id = auth.uid()
+        and target_member.user_id = profiles.id
+    )
+  );
 
 drop policy if exists "owners can create invites" on public.organization_invites;
 create policy "owners can create invites"
