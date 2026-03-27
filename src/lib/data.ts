@@ -57,7 +57,9 @@ export async function getOrganizations() {
     throw new Error(error.message);
   }
 
-  return (data ?? []).map((row) => row.organizations);
+  return (data ?? []).flatMap((row) =>
+    Array.isArray(row.organizations) ? row.organizations : [row.organizations]
+  );
 }
 
 export async function getOrganizationById(organizationId: string) {
