@@ -4,6 +4,14 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "10mb"
     }
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.supabase.co"
+      }
+    ]
   }
 };
 

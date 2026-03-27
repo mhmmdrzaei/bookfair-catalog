@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { CreateItemForm } from "@/components/create-item-form";
 import { InviteMemberForm } from "@/components/invite-member-form";
@@ -103,10 +104,12 @@ export default async function OrganizationDetailPage({
                 key={item.id}
               >
                 {item.image_path ? (
-                  <img
+                  <Image
                     alt={item.title}
                     className="item-image"
+                    height={720}
                     src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/item-images/${item.image_path}`}
+                    width={960}
                   />
                 ) : (
                   <div className="item-image" />

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ItemActions } from "@/components/item-actions";
 import { getItemById } from "@/lib/data";
@@ -24,10 +25,12 @@ export default async function ItemDetailPage({
       <div className="layout-grid">
         <section className="card stack-lg">
           {item.image_path ? (
-            <img
+            <Image
               alt={item.title}
               className="item-image"
+              height={900}
               src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/item-images/${item.image_path}`}
+              width={1200}
             />
           ) : (
             <div className="item-image" />
