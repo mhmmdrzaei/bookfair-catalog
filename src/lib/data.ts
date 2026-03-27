@@ -22,24 +22,42 @@ export async function requireUser() {
 
 export async function claimPendingInvites() {
   const supabase = await createSupabaseServerClient();
-  await requireUser();
-  await supabase.rpc("claim_pending_org_invites");
+  const user = await requireUser();
+
+  if (!user.email) {
+    return;
+  }
+
+  await supabase.rpc("claim_pending_org_invites", {
+    invited_email: user.email.toLowerCase()
+  });
 }
 
 export async function getOrganizations() {
   const supabase = await createSupabaseServerClient();
-  await requireUser();
+  const user = await requireUser();
+  await claimPendingInvites();
 
   const { data, error } = await supabase
-    .from("organizations")
-    .select("id, name, created_at")
-    .order("created_at", { ascending: false });
+    .from("organization_members")
+    .select(
+      `
+        created_at,
+        organizations!inner (
+          id,
+          name,
+          created_at
+        )
+      `
+    )
+    .eq("user_id", user.id)
+    .order("created_at", { referencedTable: "organizations", ascending: false });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return data ?? [];
+  return (data ?? []).map((row) => row.organizations);
 }
 
 export async function getOrganizationById(organizationId: string) {

@@ -27,6 +27,10 @@ export async function signInAction(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
 
+  await supabase.rpc("claim_pending_org_invites", {
+    invited_email: email.toLowerCase()
+  });
+
   redirect("/organizations");
 }
 

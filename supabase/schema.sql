@@ -134,7 +134,7 @@ begin
 end;
 $$;
 
-create or replace function public.claim_pending_org_invites()
+create or replace function public.claim_pending_org_invites(invited_email text default null)
 returns integer
 language plpgsql
 security definer
@@ -149,7 +149,7 @@ begin
     raise exception 'Authentication required';
   end if;
 
-  pending_email := lower(coalesce(auth.jwt()->>'email', ''));
+  pending_email := lower(coalesce(invited_email, auth.jwt()->>'email', ''));
   if pending_email = '' then
     return 0;
   end if;

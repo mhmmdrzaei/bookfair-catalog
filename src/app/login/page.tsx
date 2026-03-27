@@ -14,10 +14,9 @@ export default async function LoginPage({
       <section className="card auth-card stack-lg">
         <div className="stack">
           <span className="eyebrow">Catalogue Collection</span>
-          <h1>Shared book fair inventory without the spreadsheet sprawl.</h1>
+          <h1>Book Fair Inventory Manager by Mohammad</h1>
           <p className="muted">
-            Sign in to manage organizations, upload item photos, track stock, and log sales while
-            working the table with friends.
+          Sign In I dare you.
           </p>
           <p className="muted">Use Google for quick sign-in or fall back to email and password.</p>
         </div>

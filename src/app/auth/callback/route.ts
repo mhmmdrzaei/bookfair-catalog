@@ -21,6 +21,16 @@ export async function GET(request: NextRequest) {
         new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url)
       );
     }
+
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (user?.email) {
+      await supabase.rpc("claim_pending_org_invites", {
+        invited_email: user.email.toLowerCase()
+      });
+    }
   }
 
   return NextResponse.redirect(new URL("/organizations", request.url));
