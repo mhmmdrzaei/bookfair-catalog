@@ -100,7 +100,7 @@ export function MultiSaleForm({
         </select>
       </label>
       <label className="field">
-        <span>Person's Account</span>
+        <span>Person&apos;s Account</span>
         <>
           <input list={`multi-accounts-${organizationId}`} name="account" placeholder="Whose account received it?" />
           <datalist id={`multi-accounts-${organizationId}`}>

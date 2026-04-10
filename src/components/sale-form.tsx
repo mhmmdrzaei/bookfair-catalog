@@ -68,7 +68,7 @@ export function SaleForm({
         </select>
       </label>
       <label className="field">
-        <span>Person's Account</span>
+        <span>Person&apos;s Account</span>
         <>
           <input list={`accounts-${organizationId}`} name="account" placeholder="Whose account received it?" />
           <datalist id={`accounts-${organizationId}`}>
