@@ -36,6 +36,17 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.organization_accounts (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  name text not null,
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists organization_accounts_name_unique
+  on public.organization_accounts (organization_id, lower(btrim(name)));
+
 create table if not exists public.inventory_items (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -70,6 +81,37 @@ create table if not exists public.sales (
   created_by uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
+
+create table if not exists public.sale_groups (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  payment_method text not null check (payment_method in ('Venmo', 'Zelle', 'Cash', 'Other')),
+  account_id uuid references public.organization_accounts(id) on delete set null,
+  account_snapshot text not null default '',
+  total_amount numeric(10, 2) not null check (total_amount >= 0),
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.account_transfers (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  from_account_id uuid references public.organization_accounts(id) on delete set null,
+  from_account_snapshot text not null default '',
+  to_account_id uuid references public.organization_accounts(id) on delete set null,
+  to_account_snapshot text not null default '',
+  payment_method text not null default 'Other' check (payment_method in ('Venmo', 'Zelle', 'Cash', 'Other')),
+  amount numeric(10, 2) not null check (amount > 0),
+  note text not null default '',
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.sales
+  add column if not exists sale_group_id uuid references public.sale_groups(id) on delete set null;
+
+alter table public.sales
+  add column if not exists account_id uuid references public.organization_accounts(id) on delete set null;
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -144,6 +186,51 @@ as $$
       and user_id = auth.uid()
       and role = 'owner'
   );
+$$;
+
+create or replace function public.ensure_org_account(org_id uuid, account_name text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_name text;
+  account_id uuid;
+begin
+  normalized_name := btrim(coalesce(account_name, ''));
+
+  if normalized_name = '' then
+    return null;
+  end if;
+
+  select id
+  into account_id
+  from public.organization_accounts
+  where organization_id = org_id
+    and lower(btrim(name)) = lower(normalized_name)
+  limit 1;
+
+  if account_id is not null then
+    return account_id;
+  end if;
+
+  begin
+    insert into public.organization_accounts (organization_id, name, created_by)
+    values (org_id, normalized_name, auth.uid())
+    returning id into account_id;
+  exception
+    when unique_violation then
+      select id
+      into account_id
+      from public.organization_accounts
+      where organization_id = org_id
+        and lower(btrim(name)) = lower(normalized_name)
+      limit 1;
+  end;
+
+  return account_id;
+end;
 $$;
 
 create or replace function public.create_organization_workspace(org_name text)
@@ -293,6 +380,8 @@ declare
   next_quantity integer;
   sale_amount numeric(10, 2);
   sale_note text;
+  resolved_account_id uuid;
+  new_group_id uuid;
 begin
   if auth.uid() is null then
     raise exception 'Authentication required';
@@ -330,6 +419,8 @@ begin
     raise exception 'Sale amount must be positive';
   end if;
 
+  resolved_account_id := public.ensure_org_account(org_id, sale_account);
+
   sale_note := 'Sale: ' || sale_payment_method;
   if coalesce(trim(sale_account), '') <> '' then
     sale_note := sale_note || ', Account: ' || sale_account;
@@ -340,10 +431,30 @@ begin
 
   next_quantity := current_quantity - sale_quantity;
 
+  insert into public.sale_groups (
+    organization_id,
+    payment_method,
+    account_id,
+    account_snapshot,
+    total_amount,
+    created_by
+  )
+  values (
+    org_id,
+    sale_payment_method,
+    resolved_account_id,
+    coalesce(btrim(sale_account), ''),
+    sale_amount,
+    auth.uid()
+  )
+  returning id into new_group_id;
+
   insert into public.sales (
     organization_id,
+    sale_group_id,
     item_id,
     payment_method,
+    account_id,
     account,
     amount,
     quantity,
@@ -351,8 +462,10 @@ begin
   )
   values (
     org_id,
+    new_group_id,
     inventory_item_id,
     sale_payment_method,
+    resolved_account_id,
     coalesce(sale_account, ''),
     sale_amount,
     sale_quantity,
@@ -383,13 +496,236 @@ begin
 end;
 $$;
 
+create or replace function public.record_multi_item_sale(
+  org_id uuid,
+  sale_payment_method text,
+  sale_account text default '',
+  sale_lines jsonb default '[]'::jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  line_item record;
+  current_price numeric(10, 2);
+  current_quantity integer;
+  sale_total numeric(10, 2) := 0;
+  resolved_account_id uuid;
+  new_group_id uuid;
+  requested_quantity integer;
+  sale_note text;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if not public.is_org_member(org_id) then
+    raise exception 'Not authorized for this organization';
+  end if;
+
+  if sale_payment_method not in ('Venmo', 'Zelle', 'Cash', 'Other') then
+    raise exception 'Invalid payment method';
+  end if;
+
+  if jsonb_typeof(sale_lines) <> 'array' or jsonb_array_length(sale_lines) = 0 then
+    raise exception 'At least one item is required';
+  end if;
+
+  resolved_account_id := public.ensure_org_account(org_id, sale_account);
+
+  for line_item in
+    select
+      (value->>'itemId')::uuid as item_id,
+      greatest(1, coalesce((value->>'quantity')::integer, 0)) as quantity
+    from jsonb_array_elements(sale_lines)
+  loop
+    requested_quantity := line_item.quantity;
+
+    select price, quantity
+    into current_price, current_quantity
+    from public.inventory_items
+    where id = line_item.item_id
+      and organization_id = org_id
+    for update;
+
+    if current_quantity is null then
+      raise exception 'Item not found in multi-sell';
+    end if;
+
+    if current_quantity < requested_quantity then
+      raise exception 'Not enough stock for one of the selected items';
+    end if;
+
+    sale_total := sale_total + (current_price * requested_quantity);
+  end loop;
+
+  insert into public.sale_groups (
+    organization_id,
+    payment_method,
+    account_id,
+    account_snapshot,
+    total_amount,
+    created_by
+  )
+  values (
+    org_id,
+    sale_payment_method,
+    resolved_account_id,
+    coalesce(btrim(sale_account), ''),
+    sale_total,
+    auth.uid()
+  )
+  returning id into new_group_id;
+
+  for line_item in
+    select
+      (value->>'itemId')::uuid as item_id,
+      greatest(1, coalesce((value->>'quantity')::integer, 0)) as quantity
+    from jsonb_array_elements(sale_lines)
+  loop
+    requested_quantity := line_item.quantity;
+
+    select price, quantity
+    into current_price, current_quantity
+    from public.inventory_items
+    where id = line_item.item_id
+      and organization_id = org_id
+    for update;
+
+    update public.inventory_items
+    set quantity = current_quantity - requested_quantity
+    where id = line_item.item_id
+      and organization_id = org_id;
+
+    insert into public.sales (
+      organization_id,
+      sale_group_id,
+      item_id,
+      payment_method,
+      account_id,
+      account,
+      amount,
+      quantity,
+      created_by
+    )
+    values (
+      org_id,
+      new_group_id,
+      line_item.item_id,
+      sale_payment_method,
+      resolved_account_id,
+      coalesce(sale_account, ''),
+      current_price * requested_quantity,
+      requested_quantity,
+      auth.uid()
+    );
+
+    sale_note := 'Sale: ' || sale_payment_method;
+    if coalesce(trim(sale_account), '') <> '' then
+      sale_note := sale_note || ', Account: ' || sale_account;
+    end if;
+
+    insert into public.stock_movements (
+      organization_id,
+      item_id,
+      delta,
+      note,
+      created_by
+    )
+    values (
+      org_id,
+      line_item.item_id,
+      requested_quantity * -1,
+      sale_note,
+      auth.uid()
+    );
+  end loop;
+
+  return new_group_id;
+end;
+$$;
+
+create or replace function public.record_account_transfer(
+  org_id uuid,
+  from_account_name text,
+  to_account_name text,
+  transfer_payment_method text,
+  transfer_amount numeric,
+  transfer_note text default ''
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  from_account_id uuid;
+  to_account_id uuid;
+  transfer_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if not public.is_org_member(org_id) then
+    raise exception 'Not authorized for this organization';
+  end if;
+
+  if transfer_amount <= 0 then
+    raise exception 'Transfer amount must be positive';
+  end if;
+
+  if transfer_payment_method not in ('Venmo', 'Zelle', 'Cash', 'Other') then
+    raise exception 'Invalid payment method';
+  end if;
+
+  if btrim(coalesce(from_account_name, '')) = '' or btrim(coalesce(to_account_name, '')) = '' then
+    raise exception 'Both accounts are required';
+  end if;
+
+  from_account_id := public.ensure_org_account(org_id, from_account_name);
+  to_account_id := public.ensure_org_account(org_id, to_account_name);
+
+  insert into public.account_transfers (
+    organization_id,
+    from_account_id,
+    from_account_snapshot,
+    to_account_id,
+    to_account_snapshot,
+    payment_method,
+    amount,
+    note,
+    created_by
+  )
+  values (
+    org_id,
+    from_account_id,
+    btrim(from_account_name),
+    to_account_id,
+    btrim(to_account_name),
+    transfer_payment_method,
+    transfer_amount,
+    coalesce(transfer_note, ''),
+    auth.uid()
+  )
+  returning id into transfer_id;
+
+  return transfer_id;
+end;
+$$;
+
 alter table public.organizations enable row level security;
 alter table public.organization_members enable row level security;
 alter table public.organization_invites enable row level security;
 alter table public.profiles enable row level security;
+alter table public.organization_accounts enable row level security;
 alter table public.inventory_items enable row level security;
 alter table public.stock_movements enable row level security;
 alter table public.sales enable row level security;
+alter table public.sale_groups enable row level security;
+alter table public.account_transfers enable row level security;
 
 drop policy if exists "org members can view organizations" on public.organizations;
 create policy "org members can view organizations"
@@ -501,6 +837,42 @@ create policy "org members can view sales"
 drop policy if exists "org members can create sales" on public.sales;
 create policy "org members can create sales"
   on public.sales
+  for insert
+  with check (public.is_org_member(organization_id) and auth.uid() = created_by);
+
+drop policy if exists "org members can view accounts" on public.organization_accounts;
+create policy "org members can view accounts"
+  on public.organization_accounts
+  for select
+  using (public.is_org_member(organization_id));
+
+drop policy if exists "org members can create accounts" on public.organization_accounts;
+create policy "org members can create accounts"
+  on public.organization_accounts
+  for insert
+  with check (public.is_org_member(organization_id) and auth.uid() = created_by);
+
+drop policy if exists "org members can view sale groups" on public.sale_groups;
+create policy "org members can view sale groups"
+  on public.sale_groups
+  for select
+  using (public.is_org_member(organization_id));
+
+drop policy if exists "org members can create sale groups" on public.sale_groups;
+create policy "org members can create sale groups"
+  on public.sale_groups
+  for insert
+  with check (public.is_org_member(organization_id) and auth.uid() = created_by);
+
+drop policy if exists "org members can view account transfers" on public.account_transfers;
+create policy "org members can view account transfers"
+  on public.account_transfers
+  for select
+  using (public.is_org_member(organization_id));
+
+drop policy if exists "org members can create account transfers" on public.account_transfers;
+create policy "org members can create account transfers"
+  on public.account_transfers
   for insert
   with check (public.is_org_member(organization_id) and auth.uid() = created_by);
 

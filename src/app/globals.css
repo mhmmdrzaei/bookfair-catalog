@@ -140,6 +140,12 @@ select {
   font-weight: 600;
 }
 
+.inventory-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .hero h1,
 .hero h2,
 .card h2,
@@ -213,7 +219,7 @@ select {
 .ghost-button {
   border: 0;
   border-radius: 999px;
-  padding: 5px 8px;
+  padding: 11px 22px;
   cursor: pointer;
   height: fit-content;
   transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
@@ -343,6 +349,32 @@ select {
 .item-card-actions {
   display: grid;
   gap: 10px;
+}
+
+.multi-sale-list {
+  display: grid;
+  gap: 10px;
+  max-height: 48vh;
+  overflow: auto;
+}
+
+.multi-sale-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.multi-sale-row input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(73, 51, 26, 0.15);
+  border-radius: 12px;
+  background: white;
 }
 
 .item-card-actions .button,
@@ -512,4 +544,10 @@ select {
 
 .right {
   justify-self: end;
+}
+
+.totalAmount {
+  font-weight: 600;
+  /* color: var(--accent-strong); */
+  font-size: 22px;
 }

@@ -100,6 +100,20 @@ export async function getOrganizationById(organizationId: string) {
       .order("title", { ascending: true })
   ]);
 
+  const [{ data: accounts }, { data: transfers }] = await Promise.all([
+    supabase
+      .from("organization_accounts")
+      .select("id, name, created_at")
+      .eq("organization_id", organizationId)
+      .order("name", { ascending: true }),
+    supabase
+      .from("account_transfers")
+      .select("id, from_account_snapshot, to_account_snapshot, payment_method, amount, note, created_at")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(10)
+  ]);
+
   const userIds = (members ?? []).map((member) => member.user_id);
   const { data: profiles } = userIds.length
     ? await supabase.from("profiles").select("id, email").in("id", userIds)
@@ -116,8 +130,27 @@ export async function getOrganizationById(organizationId: string) {
         : null
     })),
     organization_invites: invites ?? [],
-    inventory_items: inventoryItems ?? []
+    inventory_items: inventoryItems ?? [],
+    organization_accounts: accounts ?? [],
+    account_transfers: transfers ?? []
   };
+}
+
+export async function getOrganizationAccounts(organizationId: string) {
+  const supabase = await createSupabaseServerClient();
+  await requireUser();
+
+  const { data, error } = await supabase
+    .from("organization_accounts")
+    .select("id, name, created_at")
+    .eq("organization_id", organizationId)
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ?? [];
 }
 
 export async function getItemById(organizationId: string, itemId: string) {

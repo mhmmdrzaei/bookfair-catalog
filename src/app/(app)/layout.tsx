@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <nav>
           <Link className="ghost-button" href="/organizations">
-            Organizations
+            Events
           </Link>
           <form action={signOutAction}>
             <SubmitButton className="ghost-button" pendingLabel="Signing out...">

@@ -23,6 +23,12 @@ export type InviteSummary = {
   accepted_at: string | null;
 };
 
+export type AccountSummary = {
+  id: string;
+  name: string;
+  created_at: string;
+};
+
 export type InventoryItemSummary = {
   id: string;
   title: string;
@@ -39,13 +45,33 @@ export type StockMovementSummary = {
   delta: number;
   note: string;
   created_at: string;
+  created_by?: string;
+  profiles?: {
+    email: string;
+  } | null;
 };
 
 export type SaleSummary = {
   id: string;
   payment_method: PaymentMethod;
   account: string;
+  account_id?: string | null;
+  sale_group_id?: string | null;
   amount: string;
   quantity: number;
+  created_at: string;
+  created_by?: string;
+  profiles?: {
+    email: string;
+  } | null;
+};
+
+export type AccountTransferSummary = {
+  id: string;
+  from_account_snapshot: string;
+  to_account_snapshot: string;
+  payment_method: PaymentMethod;
+  amount: string;
+  note: string;
   created_at: string;
 };

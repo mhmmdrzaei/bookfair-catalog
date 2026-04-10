@@ -14,18 +14,17 @@ export default async function OrganizationsPage({
   return (
     <section className="page-grid">
       <div className="hero">
-        <span className="eyebrow">Organizations</span>
-        <h1>Your shared catalog workspaces</h1>
+        <span className="eyebrow">Events</span>
+        <h1>Your shared event workspaces</h1>
         <p>
-          Create one organization per booth, seller group, or event. Everyone added to that
-          organization can work from the same live inventory list.
+          Create one event per booth, seller group, or event. Everyone added to the event can work from the same live inventory list.
         </p>
       </div>
 
       <div className="layout-grid">
         <section className="card stack-lg">
           <div className="stack">
-            <h2>Create organization</h2>
+            <h2>Create event</h2>
             <p className="muted">Start with a name. You can invite collaborators from the next screen.</p>
           </div>
           {params.error ? <p className="error-text">{params.error}</p> : null}
@@ -34,9 +33,9 @@ export default async function OrganizationsPage({
 
         <section className="card stack-lg">
           <div className="stack">
-            <h2>Existing organizations</h2>
+            <h2>Existing events</h2>
             <p className="muted">
-              Open an organization to add items, adjust stock, and record sales.
+              Open an event to add items, adjust stock, and record sales.
             </p>
           </div>
 
@@ -57,7 +56,7 @@ export default async function OrganizationsPage({
               ))}
             </div>
           ) : (
-            <div className="empty-state">No organizations yet. Create one to get started.</div>
+            <div className="empty-state">No events yet. Create one to get started.</div>
           )}
         </section>
       </div>

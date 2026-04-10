@@ -86,7 +86,7 @@ export async function createOrganizationAction(formData: FormData) {
   const name = getString(formData, "name");
 
   if (!name) {
-    redirect("/organizations?error=Organization%20name%20is%20required");
+    redirect("/organizations?error=Event%20name%20is%20required");
   }
 
   await requireUser();
@@ -96,7 +96,7 @@ export async function createOrganizationAction(formData: FormData) {
 
   if (error || !data) {
     redirect(
-      `/organizations?error=${encodeURIComponent(error?.message ?? "Unable to create organization")}`
+      `/organizations?error=${encodeURIComponent(error?.message ?? "Unable to create event")}`
     );
   }
 
@@ -230,6 +230,78 @@ export async function addSaleAction(formData: FormData) {
   }
 
   revalidatePath(`/organizations/${organizationId}/items/${itemId}`);
+  revalidatePath(`/organizations/${organizationId}`);
+  return { success: true };
+}
+
+export async function addMultiSaleAction(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  await requireUser();
+  const organizationId = getString(formData, "organizationId");
+  const paymentMethod = getString(formData, "paymentMethod") as PaymentMethod;
+  const account = getString(formData, "account");
+  const saleLines = getString(formData, "saleLines");
+
+  let parsedLines: Array<{ itemId: string; quantity: number }>;
+  try {
+    parsedLines = JSON.parse(saleLines) as Array<{ itemId: string; quantity: number }>;
+  } catch {
+    return { error: "Could not read the selected items." };
+  }
+
+  const validLines = parsedLines
+    .map((line) => ({
+      itemId: String(line.itemId),
+      quantity: Math.max(0, Math.floor(Number(line.quantity)))
+    }))
+    .filter((line) => line.itemId && line.quantity > 0);
+
+  if (!validLines.length) {
+    return { error: "Select at least one item with a quantity." };
+  }
+
+  const { error } = await supabase.rpc("record_multi_item_sale", {
+    org_id: organizationId,
+    sale_payment_method: paymentMethod,
+    sale_account: account,
+    sale_lines: validLines
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath(`/organizations/${organizationId}`);
+  return { success: true };
+}
+
+export async function recordAccountTransferAction(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  await requireUser();
+  const organizationId = getString(formData, "organizationId");
+  const fromAccount = getString(formData, "fromAccount");
+  const toAccount = getString(formData, "toAccount");
+  const paymentMethod = getString(formData, "paymentMethod") as PaymentMethod;
+  const note = getString(formData, "note");
+  const amount = getNumber(formData, "amount");
+
+  if (amount <= 0) {
+    return { error: "Transfer amount must be greater than zero." };
+  }
+
+  const { error } = await supabase.rpc("record_account_transfer", {
+    org_id: organizationId,
+    from_account_name: fromAccount,
+    to_account_name: toAccount,
+    transfer_payment_method: paymentMethod,
+    transfer_amount: amount,
+    transfer_note: note
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
   revalidatePath(`/organizations/${organizationId}`);
   return { success: true };
 }

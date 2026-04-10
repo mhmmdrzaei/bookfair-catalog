@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/utils";
 
 type InventoryCardProps = {
   organizationId: string;
+  accountNames?: string[];
   item: {
     id: string;
     title: string;
@@ -18,7 +19,7 @@ type InventoryCardProps = {
   };
 };
 
-export function InventoryCard({ organizationId, item }: InventoryCardProps) {
+export function InventoryCard({ organizationId, accountNames = [], item }: InventoryCardProps) {
   const [saleOpen, setSaleOpen] = useState(false);
 
   return (
@@ -57,7 +58,13 @@ export function InventoryCard({ organizationId, item }: InventoryCardProps) {
       </article>
 
       <Modal onClose={() => setSaleOpen(false)} open={saleOpen} title={`Record Sale: ${item.title}`}>
-        <SaleForm itemId={item.id} onSuccess={() => setSaleOpen(false)} organizationId={organizationId} />
+        <SaleForm
+          accountNames={accountNames}
+          itemId={item.id}
+          itemPrice={item.price}
+          onSuccess={() => setSaleOpen(false)}
+          organizationId={organizationId}
+        />
       </Modal>
     </>
   );

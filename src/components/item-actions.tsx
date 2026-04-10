@@ -9,9 +9,16 @@ import { StockAdjustmentForm } from "@/components/stock-adjustment-form";
 type ItemActionsProps = {
   organizationId: string;
   itemId: string;
+  itemPrice: string;
+  accountNames?: string[];
 };
 
-export function ItemActions({ organizationId, itemId }: ItemActionsProps) {
+export function ItemActions({
+  organizationId,
+  itemId,
+  itemPrice,
+  accountNames = []
+}: ItemActionsProps) {
   const [stockOpen, setStockOpen] = useState(false);
   const [saleOpen, setSaleOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -40,7 +47,9 @@ export function ItemActions({ organizationId, itemId }: ItemActionsProps) {
 
       <Modal onClose={() => setSaleOpen(false)} open={saleOpen} title="Add a Sale">
         <SaleForm
+          accountNames={accountNames}
           itemId={itemId}
+          itemPrice={itemPrice}
           onSuccess={() => setSaleOpen(false)}
           organizationId={organizationId}
         />

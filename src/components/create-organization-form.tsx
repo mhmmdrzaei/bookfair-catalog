@@ -5,10 +5,10 @@ export function CreateOrganizationForm() {
   return (
     <form action={createOrganizationAction} className="stack">
       <label className="field">
-        <span>Organization name</span>
-        <input name="name" placeholder="Rare Finds Collective" required />
+        <span>Event name</span>
+        <input name="name" placeholder="Spring Book Fair" required />
       </label>
-      <SubmitButton pendingLabel="Creating organization...">Create organization</SubmitButton>
+      <SubmitButton pendingLabel="Creating event...">Create event</SubmitButton>
     </form>
   );
 }

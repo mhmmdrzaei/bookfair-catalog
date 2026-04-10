@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ItemActions } from "@/components/item-actions";
-import { getItemById } from "@/lib/data";
+import { getItemById, getOrganizationAccounts } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 function formatSaleStockNote(sale: {
@@ -13,7 +13,7 @@ function formatSaleStockNote(sale: {
   const parts = [`Sale: ${sale.payment_method}`];
 
   if (sale.account) {
-    parts.push(`ACC: ${sale.account}`);
+    parts.push(`Account: ${sale.account}`);
   }
 
   const expectedAmount = Number(listPrice) * sale.quantity;
@@ -33,6 +33,8 @@ export default async function ItemDetailPage({
 }) {
   const { organizationId, itemId } = await params;
   const item = await getItemById(organizationId, itemId);
+  const organizationAccounts = await getOrganizationAccounts(organizationId);
+  const accountNames = organizationAccounts.map((account) => account.name);
   const stockMovements = item.stock_movements ?? [];
   const sales = item.sales ?? [];
   const saleByTimestamp = new Map(
@@ -55,7 +57,7 @@ export default async function ItemDetailPage({
   return (
     <section className="page-grid">
       <Link className="ghost-button right" href={`/organizations/${organizationId}`}>
-        Back to organization
+        Back to event
       </Link>
 
       <div className="layout-grid">
@@ -93,7 +95,12 @@ export default async function ItemDetailPage({
             </div>
           </div>
 
-          <ItemActions itemId={itemId} organizationId={organizationId} />
+          <ItemActions
+            accountNames={accountNames}
+            itemId={itemId}
+            itemPrice={item.price}
+            organizationId={organizationId}
+          />
         </section>
 
         <section className="stack-lg">

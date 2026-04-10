@@ -1,6 +1,7 @@
 import { CreateItemForm } from "@/components/create-item-form";
 import { InventoryCard } from "@/components/inventory-card";
 import { InviteMemberForm } from "@/components/invite-member-form";
+import { OrganizationToolbar } from "@/components/organization-toolbar";
 import { SalesModeLayout } from "@/components/sales-mode-layout";
 import { getOrganizationById } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -18,6 +19,7 @@ export default async function OrganizationDetailPage({
   const inventory = [...(organization.inventory_items ?? [])].sort((a, b) =>
     a.title.localeCompare(b.title)
   );
+  const accountNames = [...(organization.organization_accounts ?? [])].map((account) => account.name);
   const totalUnits = inventory.reduce((sum, item) => sum + item.quantity, 0);
   const totalValue = inventory.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
 
@@ -53,9 +55,9 @@ export default async function OrganizationDetailPage({
 
         <section className="stack-lg">
           <section className="card stack-lg">
-            <div className="stack">
-              <h2>Collaborators</h2>
-              <p className="muted">Add users by email. They join automatically after signing in.</p>
+          <div className="stack">
+            <h2>Collaborators</h2>
+            <p className="muted">Add users by email. They join automatically after signing in.</p>
             </div>
             <InviteMemberForm organizationId={organizationId} />
 
@@ -95,11 +97,17 @@ export default async function OrganizationDetailPage({
             {`Tap any item to open its detail view, adjust stock, or add a sale.`}
           </p>
         </div>
+        <OrganizationToolbar accountNames={accountNames} items={inventory} organizationId={organizationId} />
 
         {inventory.length ? (
           <div className="item-grid">
             {inventory.map((item) => (
-              <InventoryCard item={item} key={item.id} organizationId={organizationId} />
+              <InventoryCard
+                accountNames={accountNames}
+                item={item}
+                key={item.id}
+                organizationId={organizationId}
+              />
             ))}
           </div>
         ) : (

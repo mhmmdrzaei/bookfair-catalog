@@ -1,12 +1,12 @@
 # Catalogue Collection
 
-A small Next.js and Supabase app for cataloguing inventory and recording sales with a shared organization workspace.
+A small Next.js and Supabase app for cataloguing inventory and recording sales with a shared event workspace.
 
 ## Features
 
 - Email/password auth with Supabase
-- Create organizations and invite collaborators by email
-- Shared inventory per organization
+- Create events and invite collaborators by email
+- Shared inventory per event
 - Item records with title, photo, notes, price, and quantity
 - Stock adjustments with movement history
 - Sale logging with payment type, account, amount override, and quantity

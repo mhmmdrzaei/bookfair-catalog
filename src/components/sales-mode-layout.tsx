@@ -39,12 +39,12 @@ export function SalesModeLayout({
       <div className="hero">
         <div className="mode-header">
           <div className="stack" style={{ gap: "8px" }}>
-            <span className="eyebrow">Organization</span>
+            <span className="eyebrow">Event</span>
             <h1>{organizationName}</h1>
             <p>
               {salesMode
                 ? "Sales mode is on. Inventory stays visible while setup and collaborator controls stay out of the way."
-                : "Manage collaborators, add inventory, and keep sales moving without losing track of stock."}
+                : "Manage collaborators, add inventory, and keep sales moving without losing track of stock for this event."}
             </p>
           </div>
 
