@@ -14,6 +14,7 @@ type InventoryCardProps = {
     id: string;
     title: string;
     image_path: string | null;
+    artist_payment: string;
     price: string;
     quantity: number;
   };
@@ -45,6 +46,9 @@ export function InventoryCard({ organizationId, accountNames = [], item }: Inven
             <span className="pill">{formatCurrency(item.price)}</span>
             <span className="muted">Qty: {item.quantity}</span>
           </div>
+          {item.artist_payment ? (
+            <span className="muted ">{item.artist_payment}</span>
+          ) : null}
         </div>
 
         <div className="item-card-actions">
