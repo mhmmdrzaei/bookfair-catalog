@@ -2,30 +2,42 @@
 
 import { useState } from "react";
 import { deleteItemAction } from "@/app/actions";
+import { EditItemForm } from "@/components/edit-item-form";
 import { Modal } from "@/components/modal";
 import { SaleForm } from "@/components/sale-form";
 import { StockAdjustmentForm } from "@/components/stock-adjustment-form";
 
 type ItemActionsProps = {
   organizationId: string;
-  itemId: string;
-  itemPrice: string;
+  item: {
+    id: string;
+    title: string;
+    image_path: string | null;
+    info: string;
+    artist_payment: string;
+    price: string;
+    quantity: number;
+  };
   accountNames?: string[];
 };
 
 export function ItemActions({
   organizationId,
-  itemId,
-  itemPrice,
+  item,
   accountNames = []
 }: ItemActionsProps) {
+  const itemId = item.id;
   const [stockOpen, setStockOpen] = useState(false);
   const [saleOpen, setSaleOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <>
       <div className="inline-actions">
+        <button className="ghost-button" onClick={() => setEditOpen(true)} type="button">
+          Edit Item
+        </button>
         <button className="button" onClick={() => setStockOpen(true)} type="button">
           Update Stock
         </button>
@@ -45,11 +57,15 @@ export function ItemActions({
         />
       </Modal>
 
+      <Modal onClose={() => setEditOpen(false)} open={editOpen} title="Edit Item">
+        <EditItemForm item={item} onSuccess={() => setEditOpen(false)} organizationId={organizationId} />
+      </Modal>
+
       <Modal onClose={() => setSaleOpen(false)} open={saleOpen} title="Add a Sale">
         <SaleForm
           accountNames={accountNames}
           itemId={itemId}
-          itemPrice={itemPrice}
+          itemPrice={item.price}
           onSuccess={() => setSaleOpen(false)}
           organizationId={organizationId}
         />

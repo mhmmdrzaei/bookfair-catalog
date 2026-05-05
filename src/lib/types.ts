@@ -34,6 +34,7 @@ export type InventoryItemSummary = {
   title: string;
   image_path: string | null;
   info: string;
+  artist_payment: string;
   price: string;
   quantity: number;
   created_at: string;

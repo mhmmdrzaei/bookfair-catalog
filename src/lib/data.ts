@@ -95,7 +95,7 @@ export async function getOrganizationById(organizationId: string) {
       .order("created_at", { ascending: true }),
     supabase
       .from("inventory_items")
-      .select("id, title, image_path, info, price, quantity, created_at, updated_at")
+      .select("id, title, image_path, info, artist_payment, price, quantity, created_at, updated_at")
       .eq("organization_id", organizationId)
       .order("title", { ascending: true })
   ]);
@@ -166,6 +166,7 @@ export async function getItemById(organizationId: string, itemId: string) {
         title,
         image_path,
         info,
+        artist_payment,
         price,
         quantity,
         created_at,

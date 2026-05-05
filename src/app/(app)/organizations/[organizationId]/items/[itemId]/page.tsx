@@ -78,6 +78,9 @@ export default async function ItemDetailPage({
             <span className="eyebrow">Item</span>
             <h1 className="item-title">{item.title}</h1>
             <p className="muted">{item.info || "No additional notes yet."}</p>
+            {item.artist_payment ? (
+              <p className="muted">Artist Payment: {item.artist_payment}</p>
+            ) : null}
           </div>
 
           <div className="stat-grid">
@@ -97,8 +100,15 @@ export default async function ItemDetailPage({
 
           <ItemActions
             accountNames={accountNames}
-            itemId={itemId}
-            itemPrice={item.price}
+            item={{
+              id: itemId,
+              title: item.title,
+              image_path: item.image_path,
+              info: item.info,
+              artist_payment: item.artist_payment,
+              price: item.price,
+              quantity: item.quantity
+            }}
             organizationId={organizationId}
           />
         </section>

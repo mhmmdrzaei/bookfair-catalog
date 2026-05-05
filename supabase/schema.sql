@@ -53,6 +53,7 @@ create table if not exists public.inventory_items (
   title text not null,
   image_path text,
   info text not null default '',
+  artist_payment text not null default '',
   price numeric(10, 2) not null check (price >= 0),
   quantity integer not null default 0 check (quantity >= 0),
   created_by uuid not null references auth.users(id) on delete cascade,

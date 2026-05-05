@@ -129,6 +129,7 @@ export async function createItemAction(formData: FormData) {
   const organizationId = getString(formData, "organizationId");
   const title = getString(formData, "title");
   const info = getString(formData, "info");
+  const artistPayment = getString(formData, "artistPayment");
   const imagePath = getString(formData, "imagePath") || null;
   const price = getNumber(formData, "price");
   const quantity = Math.max(0, Math.floor(getNumber(formData, "quantity")));
@@ -143,6 +144,7 @@ export async function createItemAction(formData: FormData) {
       organization_id: organizationId,
       title,
       info,
+      artist_payment: artistPayment,
       image_path: imagePath,
       price,
       quantity,
@@ -170,6 +172,76 @@ export async function createItemAction(formData: FormData) {
   }
 
   revalidatePath(`/organizations/${organizationId}`);
+  return { success: true };
+}
+
+export async function updateItemAction(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const user = await requireUser();
+  const organizationId = getString(formData, "organizationId");
+  const itemId = getString(formData, "itemId");
+  const title = getString(formData, "title");
+  const info = getString(formData, "info");
+  const artistPayment = getString(formData, "artistPayment");
+  const imagePath = getString(formData, "imagePath") || null;
+  const oldImagePath = getString(formData, "oldImagePath") || null;
+  const price = getNumber(formData, "price");
+  const quantity = Math.max(0, Math.floor(getNumber(formData, "quantity")));
+
+  if (!title) {
+    return { error: "Title is required." };
+  }
+
+  const { data: existingItem, error: existingItemError } = await supabase
+    .from("inventory_items")
+    .select("quantity")
+    .eq("id", itemId)
+    .eq("organization_id", organizationId)
+    .single();
+
+  if (existingItemError || !existingItem) {
+    return { error: "Item not found." };
+  }
+
+  const { error } = await supabase
+    .from("inventory_items")
+    .update({
+      title,
+      info,
+      artist_payment: artistPayment,
+      image_path: imagePath,
+      price,
+      quantity
+    })
+    .eq("id", itemId)
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const quantityDelta = quantity - existingItem.quantity;
+  if (quantityDelta !== 0) {
+    const direction = quantityDelta > 0 ? "increase" : "decrease";
+    const { error: movementError } = await supabase.from("stock_movements").insert({
+      organization_id: organizationId,
+      item_id: itemId,
+      delta: quantityDelta,
+      note: `Item edit quantity ${direction}`,
+      created_by: user.id
+    });
+
+    if (movementError) {
+      return { error: movementError.message };
+    }
+  }
+
+  if (oldImagePath && imagePath && oldImagePath !== imagePath) {
+    await supabase.storage.from("item-images").remove([oldImagePath]);
+  }
+
+  revalidatePath(`/organizations/${organizationId}`);
+  revalidatePath(`/organizations/${organizationId}/items/${itemId}`);
   return { success: true };
 }
 
