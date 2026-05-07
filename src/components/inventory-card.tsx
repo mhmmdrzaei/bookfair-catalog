@@ -47,7 +47,7 @@ export function InventoryCard({ organizationId, accountNames = [], item }: Inven
             <span className="muted">Qty: {item.quantity}</span>
           </div>
           {item.artist_payment ? (
-            <span className="muted ">{item.artist_payment}</span>
+            <span className="muted artist-payment">{item.artist_payment}</span>
           ) : null}
         </div>
 

@@ -47,6 +47,9 @@ img {
   display: block;
   height: auto;
 }
+.artist-payment {
+  word-break: break-all;
+}
 
 button,
 input,
